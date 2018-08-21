@@ -39,7 +39,7 @@ state = env_info.vector_observations[0]  # get the current state
 score = 0  # initialize the score
 
 #Instantiate Agent
-agent = Agent(state_size=8, action_size=4, seed=0)
+agent = Agent(state_size=state_size, action_size=action_size, seed=0)
 
 def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.995):
     """Deep Q-Learning.
@@ -56,14 +56,19 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
     scores_window = deque(maxlen=100)  # last 100 scores
     eps = eps_start  # initialize epsilon
     for i_episode in range(1, n_episodes + 1):
-        state = env.reset()
+        env_info = env.reset(train_mode=True)[brain_name]
+        state = env_info.vector_observations[0]
         score = 0
         for t in range(max_t):
             action = agent.act(state, eps)
-            next_state, reward, done, _ = env.step(action)
+            env_info = env.step(action)[brain_name]
+            next_state = env_info.vector_observations[0]  # get the next state
+            reward = env_info.rewards[0]  # get the reward
+            done = env_info.local_done[0]  # see if episode has finished
             agent.step(state, action, reward, next_state, done)
             state = next_state
             score += reward
+            #print('\nEpisode {}\t TimeStep {} \tScore: {:.2f} \tDone {}'.format(i_episode, t, score, done), end="")
             if done:
                 break
         scores_window.append(score)  # save most recent score
@@ -82,10 +87,13 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
 
 scores = dqn()
 
+
 # plot the scores
+"""
 fig = plt.figure()
 ax = fig.add_subplot(111)
 plt.plot(np.arange(len(scores)), scores)
 plt.ylabel('Score')
 plt.xlabel('Episode #')
 plt.show()
+"""
