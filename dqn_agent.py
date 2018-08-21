@@ -1,12 +1,11 @@
 import numpy as np
 import random
-from collections import namedtuple, deque
-
-from model import QNetwork
-
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+
+from collections import namedtuple, deque
+from model import QNetwork
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
@@ -16,6 +15,7 @@ LR = 5e-4               # learning rate
 UPDATE_EVERY = 4        # how often to update the network
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 class Agent():
     """Interacts with and learns from the environment."""
