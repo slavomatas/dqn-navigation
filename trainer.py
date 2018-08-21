@@ -1,14 +1,10 @@
 import os
-import numpy as np
-import random
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-
 from collections import deque
-from unityagents import UnityEnvironment
 
+import numpy as np
+import torch
 from dqn_agent import Agent
+from unityagents import UnityEnvironment
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
@@ -34,11 +30,10 @@ print('States look like:', state)
 state_size = len(state)
 print('States have length:', state_size)
 
-#env_info = env.reset(train_mode=True)[brain_name]  # reset the environment
 state = env_info.vector_observations[0]  # get the current state
 score = 0  # initialize the score
 
-#Instantiate Agent
+# Instantiate Agent
 agent = Agent(state_size=state_size, action_size=action_size, seed=0)
 
 def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.995):
@@ -68,7 +63,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
             agent.step(state, action, reward, next_state, done)
             state = next_state
             score += reward
-            #print('\nEpisode {}\t TimeStep {} \tScore: {:.2f} \tDone {}'.format(i_episode, t, score, done), end="")
+            # print('\nEpisode {}\t TimeStep {} \tScore: {:.2f} \tDone {}'.format(i_episode, t, score, done), end="")
             if done:
                 break
         scores_window.append(score)  # save most recent score
@@ -86,7 +81,6 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
 
 
 scores = dqn()
-
 
 # plot the scores
 """

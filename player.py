@@ -1,11 +1,5 @@
 import os
-import numpy as np
-import random
 import torch
-import numpy as np
-import matplotlib.pyplot as plt
-
-from collections import deque
 from unityagents import UnityEnvironment
 
 from dqn_agent import Agent
@@ -38,6 +32,8 @@ print('States have length:', state_size)
 agent = Agent(state_size=state_size, action_size=action_size, seed=0)
 agent.qnetwork_local.load_state_dict(torch.load('checkpoint.pth'))
 
+score = 0  # initialize the score
+
 for i in range(3):
     env_info = env.reset(train_mode=False)[brain_name]
     state = env_info.vector_observations[0]
@@ -48,6 +44,8 @@ for i in range(3):
         reward = env_info.rewards[0]  # get the reward
         done = env_info.local_done[0]  # see if episode has finished
         state = next_state
+        score += reward
+        print('\rScore: {:.2f}'.format(score), end="")
         if done:
             break
 
