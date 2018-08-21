@@ -34,7 +34,7 @@ print('States look like:', state)
 state_size = len(state)
 print('States have length:', state_size)
 
-env_info = env.reset(train_mode=False)[brain_name]  # reset the environment
+#env_info = env.reset(train_mode=True)[brain_name]  # reset the environment
 state = env_info.vector_observations[0]  # get the current state
 score = 0  # initialize the score
 
@@ -77,7 +77,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
-        if np.mean(scores_window) >= 200.0:
+        if np.mean(scores_window) >= 15.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode - 100,
                                                                                          np.mean(scores_window)))
             torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
