@@ -6,7 +6,7 @@ from dqn_agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-env = UnityEnvironment(file_name="Banana_Linux/Banana.x86_64", no_graphics=False)
+env = UnityEnvironment(file_name="VisualBanana_Linux/Banana.x86_64", no_graphics=False)
 
 # get the default brain# get t
 brain_name = env.brain_names[0]
@@ -30,7 +30,7 @@ print('States have length:', state_size)
 
 # load the weights from file
 agent = Agent(state_size=state_size, action_size=action_size, seed=0)
-agent.qnetwork_local.load_state_dict(torch.load('checkpoint.pth'))
+agent.qnetwork_local.load_state_dict(torch.load('pixels_checkpoint.pth'))
 
 score = 0  # initialize the score
 
