@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from collections import namedtuple, deque
-from model import QNetwork
+from pixels_model import PixelsQNetwork
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
@@ -20,7 +20,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class PixelsAgent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, seed):
+    def __init__(self, input_shape, action_size, seed):
         """Initialize an Agent object.
         
         Params
@@ -29,13 +29,13 @@ class PixelsAgent():
             action_size (int): dimension of each action
             seed (int): random seed
         """
-        self.state_size = state_size
+        self.state_size = input_shape
         self.action_size = action_size
         self.seed = random.seed(seed)
 
         # Q-Network
-        self.qnetwork_local = QNetwork(state_size, action_size, seed).to(device)
-        self.qnetwork_target = QNetwork(state_size, action_size, seed).to(device)
+        self.qnetwork_local = PixelsQNetwork(input_shape, action_size).to(device)
+        self.qnetwork_target = PixelsQNetwork(input_shape, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
@@ -63,7 +63,8 @@ class PixelsAgent():
             state (array_like): current state
             eps (float): epsilon, for epsilon-greedy action selection
         """
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        #state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
@@ -83,6 +84,8 @@ class PixelsAgent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
+        #print("learn")
+
         states, actions, rewards, next_states, dones = experiences
 
         # Get max predicted Q values (for next states) from target model
@@ -113,6 +116,8 @@ class PixelsAgent():
             target_model (PyTorch model): weights will be copied to
             tau (float): interpolation parameter 
         """
+        #print("soft_update")
+
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
