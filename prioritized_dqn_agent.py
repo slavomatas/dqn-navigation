@@ -121,7 +121,6 @@ class PrioritizedReplayBuffer(ReplayBuffer):
     def _sample_proportional(self, batch_size):
         res = []
         for _ in range(batch_size):
-            # TODO(szymon): should we ensure no repeats?
             mass = random.random() * self._it_sum.sum(0, len(self._storage) - 1)
             idx = self._it_sum.find_prefixsum_idx(mass)
             res.append(idx)
@@ -206,6 +205,32 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             self._max_priority = max(self._max_priority, priority)
 
 
+class LinearSchedule(object):
+    def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
+        """Linear interpolation between initial_p and final_p over
+        schedule_timesteps. After this many timesteps pass final_p is
+        returned.
+
+        Parameters
+        ----------
+        schedule_timesteps: int
+            Number of timesteps for which to linearly anneal initial_p
+            to final_pw
+        initial_p: float
+            initial output value
+        final_p: float
+            final output value
+        """
+        self.schedule_timesteps = schedule_timesteps
+        self.final_p = final_p
+        self.initial_p = initial_p
+
+    def value(self, t):
+        """See Schedule.value"""
+        fraction = min(float(t) / self.schedule_timesteps, 1.0)
+        return self.initial_p + fraction * (self.final_p - self.initial_p)
+
+
 class Agent():
     """Interacts with and learns from the environment."""
 
@@ -227,22 +252,37 @@ class Agent():
         self.qnetwork_target = QNetwork(state_size, action_size, seed).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
+        self.prioritized_replay_alpha = 0.6
+        self.prioritized_replay_beta0 = 0.4
+        self.prioritized_replay_beta_iters = 100000
+
         # Replay memory
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
+        self.memory = PrioritizedReplayBuffer(BUFFER_SIZE, alpha=self.prioritized_replay_alpha)
+        self.beta_schedule = LinearSchedule(self.prioritized_replay_beta_iters,
+                                            initial_p=self.prioritized_replay_beta0,
+                                            final_p=1.0)
+
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
     
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
-        
+
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample()
+                experiences = self.memory.sample(self.batch_size, beta=self.beta_schedule.value(len(self.memory)))
+                #(obses_t, actions, rewards, obses_tp1, dones, weights, batch_idxes) = samples
+                #experiences = []
+                #for i in range(len(obses_t)):
+                #    experiences.append(namedtuple("PrioritizedExperience", field_names=["state", "action", "reward", "next_state", "done", "weight", "batch_idx"])(obses_t[i:i+1], actions[i:i+1], rewards[i:i+1], obses_tp1[i:i+1], dones[i:i+1], weights[i:i+1], batch_idxes[i:i+1]))
                 self.learn(experiences, GAMMA)
+
+                #experiences = self.memory.sample()
+                #self.learn(experiences, GAMMA)
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
