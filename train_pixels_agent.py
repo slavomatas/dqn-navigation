@@ -12,17 +12,10 @@ from unityagents import UnityEnvironment
 
 
 # visualize a 3 channel RGB image
-def visualize_rgb_image(state):
-    img1 = np.squeeze(state)
-    plt.imshow(img1)
-    plt.show()
-
-
-# visualize a 1 channel grayscale image
-def visualize_grayscale_image(state):
-    img2 = np.squeeze(state)
-    img2 = rgb2gray(state)
-    plt.imshow(img2, cmap='gray')
+def visualize_state(state):
+    img = np.squeeze(state.numpy())
+    img = img.reshape(img.shape[0], img.shape[1], 1)
+    plt.imshow(img)
     plt.show()
 
 
@@ -36,7 +29,6 @@ def transform_visual_observation(state, device):
 
     state = state.reshape(state.shape[0], state.shape[1], 1)
 
-    # state = np.moveaxis(state, 2, 0)
     state = state.transpose((2, 0, 1))
 
     state = torch.from_numpy(state)
@@ -124,6 +116,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
+            #visualize_state(state)
         if np.mean(scores_window) >= 15.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode - 100,
                                                                                          np.mean(scores_window)))
