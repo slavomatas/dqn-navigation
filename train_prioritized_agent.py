@@ -76,7 +76,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         if np.mean(scores_window) >= 15.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode - 100,
                                                                                          np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), './chekpoints/prioritized_checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), './checkpoints/prioritized_checkpoint.pth')
             break
     return scores
 
