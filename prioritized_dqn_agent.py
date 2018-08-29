@@ -112,7 +112,6 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self._max_priority = 1.0
 
     def add(self, *args, **kwargs):
-        """See ReplayBuffer.store_effect"""
         idx = self._next_idx
         super().add(*args, **kwargs)
         self._it_sum[idx] = self._max_priority ** self._alpha
@@ -176,7 +175,16 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             weights.append(weight / max_weight)
         weights = np.array(weights)
         encoded_sample = self._encode_sample(idxes)
-        return tuple(list(encoded_sample) + [weights, idxes])
+        states, actions, rewards, next_states, dones = encoded_sample
+
+        states = torch.from_numpy(np.vstack(states)).float().to(device)
+        actions = torch.from_numpy(np.vstack(actions)).long().to(device)
+        rewards = torch.from_numpy(np.vstack(rewards)).float().to(device)
+        next_states = torch.from_numpy(np.vstack(next_states)).float().to(device)
+        dones = torch.from_numpy(np.vstack(dones).astype(np.uint8)).float().to(device)
+        batch_weights = torch.tensor(np.vstack(weights)).float().to(device)
+
+        return (states, actions, rewards, next_states, dones, batch_weights, idxes)
 
     def update_priorities(self, idxes, priorities):
         """Update priorities of sampled transitions.
@@ -195,8 +203,6 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         """
         assert len(idxes) == len(priorities)
         for idx, priority in zip(idxes, priorities):
-            priority = priority[0]
-            idx = idx[0]
             assert priority > 0
             assert 0 <= idx < len(self._storage)
             self._it_sum[idx] = priority ** self._alpha
@@ -274,15 +280,8 @@ class Agent():
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample(self.batch_size, beta=self.beta_schedule.value(len(self.memory)))
-                #(obses_t, actions, rewards, obses_tp1, dones, weights, batch_idxes) = samples
-                #experiences = []
-                #for i in range(len(obses_t)):
-                #    experiences.append(namedtuple("PrioritizedExperience", field_names=["state", "action", "reward", "next_state", "done", "weight", "batch_idx"])(obses_t[i:i+1], actions[i:i+1], rewards[i:i+1], obses_tp1[i:i+1], dones[i:i+1], weights[i:i+1], batch_idxes[i:i+1]))
+                experiences = self.memory.sample(BATCH_SIZE, beta=self.beta_schedule.value(len(self.memory)))
                 self.learn(experiences, GAMMA)
-
-                #experiences = self.memory.sample()
-                #self.learn(experiences, GAMMA)
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -312,7 +311,7 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, weights, idxes = experiences
 
         # Get max predicted Q values (for next states) from target model
         Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
@@ -323,11 +322,16 @@ class Agent():
         Q_expected = self.qnetwork_local(states).gather(1, actions)
 
         # Compute loss
-        loss = F.mse_loss(Q_expected, Q_targets)
+        losses_v = weights * (Q_expected - Q_targets) ** 2
+        loss = losses_v.mean()
+        prios = losses_v + 1e-5
+
         # Minimize the loss
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        self.memory.update_priorities(idxes, prios.data.cpu().numpy())
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)                     
