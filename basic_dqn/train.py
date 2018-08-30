@@ -8,7 +8,7 @@ from agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-env = UnityEnvironment(file_name="Banana_Linux/Banana.x86_64", no_graphics=True)
+env = UnityEnvironment(file_name="../Banana_Linux/Banana.x86_64", no_graphics=True)
 
 # get the default brain
 brain_name = env.brain_names[0]

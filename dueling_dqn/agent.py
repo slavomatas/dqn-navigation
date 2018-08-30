@@ -1,16 +1,7 @@
-import gym
-import ptan
-import argparse
 import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-
-#from tensorboardX import SummaryWriter
-
-#from lib import replay_buffer
-
 
 class DuelingDQN(nn.Module):
     def __init__(self, input_shape, n_actions):

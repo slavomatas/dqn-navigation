@@ -3,12 +3,11 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+#from skimage.color import rgb2gray
 from collections import deque
-from skimage.color import rgb2gray
-
-from pixels_dqn_agent import PixelsAgent
 from unityagents import UnityEnvironment
 
+from agent import Agent
 
 # visualize a 3 channel RGB image
 def visualize_state(state):
@@ -41,7 +40,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-env = UnityEnvironment(file_name="VisualBanana_Linux/Banana.x86_64", no_graphics=False)
+env = UnityEnvironment(file_name="../VisualBanana_Linux/Banana.x86_64", no_graphics=False)
 
 # get the default brain# get t
 brain_name = env.brain_names[0]
@@ -67,7 +66,7 @@ score = 0  # initialize the score
 state = transform_visual_observation(state, device)
 
 # Instantiate Agent
-agent = PixelsAgent(input_shape=state.shape[1:], action_size=action_size, seed=0)
+agent = Agent(input_shape=state.shape[1:], action_size=action_size, seed=0)
 
 
 def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.995):
@@ -117,7 +116,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         if np.mean(scores_window) >= 13.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode - 100,
                                                                                          np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), 'pixels_checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), "checkpoints/pixels_checkpoint.pth")
             break
     return scores
 

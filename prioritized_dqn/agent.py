@@ -1,9 +1,14 @@
 import random
-import torch
 import numpy as np
-import torch.optim as optim
 
-from model import QNetwork
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+
+import sys
+sys.path.append("../replay_buffer")
+
 from replay_buffer import PrioritizedReplayBuffer, LinearSchedule
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
