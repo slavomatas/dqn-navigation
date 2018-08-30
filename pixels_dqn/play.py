@@ -4,6 +4,9 @@ import numpy as np
 
 from unityagents import UnityEnvironment
 
+import sys
+sys.path.append("../")
+
 from agent import Agent
 
 

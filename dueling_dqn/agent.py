@@ -5,10 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-import sys
-sys.path.append("../replay_buffer")
-
-from replay_buffer import PrioritizedReplayBuffer, LinearSchedule
+from replay_buffer.replay_buffer import PrioritizedReplayBuffer, LinearSchedule
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size

@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from collections import deque
 from unityagents import UnityEnvironment
 
+import sys
+sys.path.append("../")
+
 from agent import Agent
 
 # visualize a 3 channel RGB image
