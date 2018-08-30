@@ -1,16 +1,16 @@
 import os
-from collections import deque
-
-import numpy as np
 import torch
-from dqn_agent import Agent
+import numpy as np
+
+from collections import deque
 from unityagents import UnityEnvironment
+from agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 env = UnityEnvironment(file_name="Banana_Linux/Banana.x86_64", no_graphics=True)
 
-# get the default brain# get t
+# get the default brain
 brain_name = env.brain_names[0]
 brain = env.brains[brain_name]
 
@@ -33,8 +33,9 @@ print('States have length:', state_size)
 state = env_info.vector_observations[0]  # get the current state
 score = 0  # initialize the score
 
-# Instantiate Agent
+# Instantiate DQN Agent
 agent = Agent(state_size=state_size, action_size=action_size, seed=0)
+
 
 def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.995):
     """Deep Q-Learning.
@@ -75,7 +76,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         if np.mean(scores_window) >= 13.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode - 100,
                                                                                          np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), './checkpoints/checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), '../checkpoints/checkpoint.pth')
             break
     return scores
 
