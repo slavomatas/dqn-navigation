@@ -30,7 +30,7 @@ print('States have length:', state_size)
 
 # load the weights from file
 agent = Agent(state_size=state_size, action_size=action_size, seed=0)
-agent.qnetwork_local.load_state_dict(torch.load("../checkpoints/checkpoint.pth"))
+agent.qnetwork_local.load_state_dict(torch.load("../checkpoints/prioritized_checkpoint.pth"))
 
 score = 0  # initialize the score
 
