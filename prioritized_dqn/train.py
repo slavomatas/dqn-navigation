@@ -1,10 +1,11 @@
 import os
-from collections import deque
-
-import numpy as np
 import torch
-from prioritized_dqn_agent import Agent
+import numpy as np
+
+from collections import deque
 from unityagents import UnityEnvironment
+
+from agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 

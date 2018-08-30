@@ -9,7 +9,7 @@ import torch.optim as optim
 
 #from tensorboardX import SummaryWriter
 
-#from lib import common
+#from lib import replay_buffer
 
 
 class DuelingDQN(nn.Module):
