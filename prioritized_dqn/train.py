@@ -5,6 +5,9 @@ import torch
 from collections import deque
 from unityagents import UnityEnvironment
 
+import sys
+sys.path.append("../")
+
 from agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
