@@ -14,38 +14,17 @@ TAU = 1e-3  # for soft update of target parameters
 LR = 5e-4  # learning rate
 UPDATE_EVERY = 4  # how often to update the network
 
+Vmax = 10
+Vmin = -10
+N_ATOMS = 51
+DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class SimpleQNetwork(nn.Module):
-    def __init__(self, obs_len, actions_n):
-        super(SimpleQNetwork, self).__init__()
-
-        self.fc_val = nn.Sequential(
-            nn.Linear(obs_len, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
-        )
-
-        self.fc_adv = nn.Sequential(
-            nn.Linear(obs_len, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, actions_n)
-        )
-
-    def forward(self, x):
-        val = self.fc_val(x)
-        adv = self.fc_adv(x)
-        return val + adv - adv.mean()
-
-
-class DuelingQNetwork(nn.Module):
+class DistributionalDQN(nn.Module):
     def __init__(self, input_shape, n_actions):
-        super(DuelingQNetwork, self).__init__()
+        super(DistributionalDQN, self).__init__()
 
         self.conv = nn.Sequential(
             nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
@@ -57,27 +36,38 @@ class DuelingQNetwork(nn.Module):
         )
 
         conv_out_size = self._get_conv_out(input_shape)
-        self.fc_adv = nn.Sequential(
+        self.fc = nn.Sequential(
             nn.Linear(conv_out_size, 512),
             nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(512, n_actions * N_ATOMS)
         )
-        self.fc_val = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
-        )
+
+        self.register_buffer("supports", torch.arange(Vmin, Vmax+DELTA_Z, DELTA_Z))
+        self.softmax = nn.Softmax(dim=1)
 
     def _get_conv_out(self, shape):
         o = self.conv(torch.zeros(1, *shape))
         return int(np.prod(o.size()))
 
     def forward(self, x):
+        batch_size = x.size()[0]
         fx = x.float() / 256
-        conv_out = self.conv(fx).view(fx.size()[0], -1)
-        val = self.fc_val(conv_out)
-        adv = self.fc_adv(conv_out)
-        return val + adv - adv.mean()
+        conv_out = self.conv(fx).view(batch_size, -1)
+        fc_out = self.fc(conv_out)
+        return fc_out.view(batch_size, -1, N_ATOMS)
+
+    def both(self, x):
+        cat_out = self(x)
+        probs = self.apply_softmax(cat_out)
+        weights = probs * self.supports
+        res = weights.sum(dim=2)
+        return cat_out, res
+
+    def qvals(self, x):
+        return self.both(x)[1]
+
+    def apply_softmax(self, t):
+        return self.softmax(t.view(-1, N_ATOMS)).view(t.size())
 
 
 class Agent():
@@ -97,8 +87,8 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(input_shape, action_size).to(device)
-        self.qnetwork_target = DuelingQNetwork(input_shape, action_size).to(device)
+        self.qnetwork_local = DistributionalDQN(input_shape, action_size).to(device)
+        self.qnetwork_target = DistributionalDQN(input_shape, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         self.prioritized_replay_alpha = 0.6
