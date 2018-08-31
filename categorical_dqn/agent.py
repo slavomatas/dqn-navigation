@@ -1,4 +1,6 @@
 import random
+import traceback
+
 import numpy as np
 
 import torch
@@ -15,8 +17,8 @@ TAU = 1e-3  # for soft update of target parameters
 LR = 5e-4  # learning rate
 UPDATE_EVERY = 4  # how often to update the network
 
-Vmax = 10
-Vmin = -10
+Vmax = 15
+Vmin = -1
 N_ATOMS = 51
 DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 
@@ -186,45 +188,51 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
-        batch_size = len(states)
+        try:
 
-        states_v = torch.tensor(states).to(device)
-        actions_v = torch.tensor(actions).to(device)
-        next_states_v = torch.tensor(next_states).to(device)
+            states, actions, rewards, next_states, dones = experiences
+            batch_size = len(states)
 
-        # next state distribution
-        next_distr_v, next_qvals_v = self.qnetwork_target.both(next_states_v)
-        next_actions = next_qvals_v.max(1)[1].data.cpu().numpy()
-        next_distr = self.qnetwork_target.apply_softmax(next_distr_v).data.cpu().numpy()
+            states_v = torch.tensor(states).to(device)
+            actions_v = torch.tensor(actions).to(device)
+            next_states_v = torch.tensor(next_states).to(device)
 
-        next_best_distr = next_distr[range(batch_size), next_actions]
+            # next state distribution
+            next_distr_v, next_qvals_v = self.qnetwork_target.both(next_states_v)
+            next_actions = next_qvals_v.max(1)[1].data.cpu().numpy()
+            next_distr = self.qnetwork_target.apply_softmax(next_distr_v).data.cpu().numpy()
 
-        # project our distribution using Bellman update
-        proj_distr = self.distr_projection(next_best_distr, rewards, dones, Vmin, Vmax, N_ATOMS, gamma)
+            next_best_distr = next_distr[range(batch_size), next_actions]
 
-        # calculate net output
-        distr_v = self.qnetwork_local(states_v)
-        state_action_values = distr_v[range(batch_size), actions_v.data]
-        state_log_sm_v = F.log_softmax(state_action_values, dim=1)
-        proj_distr_v = torch.tensor(proj_distr).to(device)
+            # project our distribution using Bellman update
+            proj_distr = self.distr_projection(next_best_distr, rewards, dones, Vmin, Vmax, N_ATOMS, gamma)
 
-        """
-        if save_prefix is not None:
-            pred = F.softmax(state_action_values, dim=1).data.cpu().numpy()
-            save_transition_images(batch_size, pred, proj_distr, next_best_distr, dones, rewards, save_prefix)
-        """
+            # calculate net output
+            distr_v = self.qnetwork_local(states_v)
+            #print("distr_v.shape {} actions_v.shape {}".format(distr_v.shape, actions_v.shape))
+            state_action_values = distr_v[range(batch_size), actions_v.data]
+            state_log_sm_v = F.log_softmax(state_action_values, dim=1)
+            proj_distr_v = torch.tensor(proj_distr).to(device)
 
-        loss_v = -state_log_sm_v * proj_distr_v
-        loss_v = loss_v.sum(dim=1).mean()
+            """
+            if save_prefix is not None:
+                pred = F.softmax(state_action_values, dim=1).data.cpu().numpy()
+                save_transition_images(batch_size, pred, proj_distr, next_best_distr, dones, rewards, save_prefix)
+            """
 
-        # Minimize the loss
-        self.optimizer.zero_grad()
-        loss_v.backward()
-        self.optimizer.step()
+            loss_v = -state_log_sm_v * proj_distr_v
+            loss_v = loss_v.sum(dim=1).mean()
 
-        # ------------------- update target network ------------------- #
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+            # Minimize the loss
+            self.optimizer.zero_grad()
+            loss_v.backward()
+            self.optimizer.step()
+
+            # ------------------- update target network ------------------- #
+            self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+        except:
+            print("====> Exception: Failed to execute learn")
+            print(traceback.print_exc())
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.
