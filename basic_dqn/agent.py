@@ -67,6 +67,7 @@ class Agent():
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
+
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
     

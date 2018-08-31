@@ -4,8 +4,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
-from replay_buffer.replay_buffer import PrioritizedReplayBuffer, LinearSchedule
+from collections import namedtuple, deque
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
@@ -70,6 +71,49 @@ class DistributionalDQN(nn.Module):
         return self.softmax(t.view(-1, N_ATOMS)).view(t.size())
 
 
+class ReplayBuffer:
+    """Fixed-size buffer to store experience tuples."""
+
+    def __init__(self, action_size, buffer_size, batch_size, seed):
+        """Initialize a ReplayBuffer object.
+
+        Params
+        ======
+            action_size (int): dimension of each action
+            buffer_size (int): maximum size of buffer
+            batch_size (int): size of each training batch
+            seed (int): random seed
+        """
+        self.action_size = action_size
+        self.memory = deque(maxlen=buffer_size)
+        self.batch_size = batch_size
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+        self.seed = random.seed(seed)
+
+    def add(self, state, action, reward, next_state, done):
+        """Add a new experience to memory."""
+        e = self.experience(state, action, reward, next_state, done)
+        self.memory.append(e)
+
+    def sample(self):
+        """Randomly sample a batch of experiences from memory."""
+        experiences = random.sample(self.memory, k=self.batch_size)
+
+        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(
+            device)
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(
+            device)
+
+        return (states, actions, rewards, next_states, dones)
+
+    def __len__(self):
+        """Return the current size of internal memory."""
+        return len(self.memory)
+
+
 class Agent():
     """Interacts with and learns from the environment."""
 
@@ -96,10 +140,7 @@ class Agent():
         self.prioritized_replay_beta_iters = 100000
 
         # Replay memory
-        self.memory = PrioritizedReplayBuffer(BUFFER_SIZE, alpha=self.prioritized_replay_alpha)
-        self.beta_schedule = LinearSchedule(self.prioritized_replay_beta_iters,
-                                            initial_p=self.prioritized_replay_beta0,
-                                            final_p=1.0)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -113,7 +154,7 @@ class Agent():
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample(BATCH_SIZE, beta=self.beta_schedule.value(len(self.memory)))
+                experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
     def act(self, state, eps=0.):
@@ -145,10 +186,7 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        # print("learn")
-
-        states, actions, rewards, next_states, dones, weights, idxes = experiences
-        #states, actions, rewards, dones, next_states = common.unpack_batch(batch)
+        states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
 
         states_v = torch.tensor(states).to(device)
@@ -161,7 +199,6 @@ class Agent():
         next_distr = self.qnetwork_target.apply_softmax(next_distr_v).data.cpu().numpy()
 
         next_best_distr = next_distr[range(batch_size), next_actions]
-        dones = dones.astype(np.bool)
 
         # project our distribution using Bellman update
         proj_distr = self.distr_projection(next_best_distr, rewards, dones, Vmin, Vmax, N_ATOMS, gamma)
@@ -205,11 +242,14 @@ class Agent():
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
 
-    def distr_projection(next_distr, rewards, dones, Vmin, Vmax, n_atoms, gamma):
+    def distr_projection(self, next_distr, rewards, dones, Vmin, Vmax, n_atoms, gamma):
         """
         Perform distribution projection aka Catergorical Algorithm from the
         "A Distributional Perspective on RL" paper
         """
+        rewards = rewards.data.cpu().numpy()
+        dones = dones.data.cpu().numpy().astype(np.bool)
+
         batch_size = len(rewards)
         proj_distr = np.zeros((batch_size, n_atoms), dtype=np.float32)
         delta_z = (Vmax - Vmin) / (n_atoms - 1)
@@ -219,12 +259,14 @@ class Agent():
             l = np.floor(b_j).astype(np.int64)
             u = np.ceil(b_j).astype(np.int64)
             eq_mask = u == l
+            eq_mask = np.squeeze(eq_mask)
             proj_distr[eq_mask, l[eq_mask]] += next_distr[eq_mask, atom]
             ne_mask = u != l
+            ne_mask = np.squeeze(ne_mask)
             proj_distr[ne_mask, l[ne_mask]] += next_distr[ne_mask, atom] * (u - b_j)[ne_mask]
             proj_distr[ne_mask, u[ne_mask]] += next_distr[ne_mask, atom] * (b_j - l)[ne_mask]
         if dones.any():
-            proj_distr[dones] = 0.0
+            proj_distr[np.squeeze(dones)] = 0.0
             tz_j = np.minimum(Vmax, np.maximum(Vmin, rewards[dones]))
             b_j = (tz_j - Vmin) / delta_z
             l = np.floor(b_j).astype(np.int64)
@@ -232,11 +274,13 @@ class Agent():
             eq_mask = u == l
             eq_dones = dones.copy()
             eq_dones[dones] = eq_mask
+            eq_dones = np.squeeze(eq_dones)
             if eq_dones.any():
                 proj_distr[eq_dones, l] = 1.0
             ne_mask = u != l
             ne_dones = dones.copy()
             ne_dones[dones] = ne_mask
+            ne_dones = np.squeeze(ne_dones)
             if ne_dones.any():
                 proj_distr[ne_dones, l] = (u - b_j)[ne_mask]
                 proj_distr[ne_dones, u] = (b_j - l)[ne_mask]
