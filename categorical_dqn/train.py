@@ -12,14 +12,6 @@ sys.path.append("../")
 
 from agent import Agent
 
-# visualize a 3 channel RGB image
-def visualize_state(state):
-    img = np.squeeze(state.numpy())
-    img = img.reshape(img.shape[0], img.shape[1], 1)
-    plt.imshow(img)
-    plt.show()
-
-
 def transform_visual_observation(state, device):
     state = np.squeeze(state)
 
