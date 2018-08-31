@@ -3,33 +3,15 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-#from skimage.color import rgb2gray
 from collections import deque
 from unityagents import UnityEnvironment
 
 import sys
 sys.path.append("../")
 
+from utils.utils import process_observation
 from agent import Agent
 
-def transform_visual_observation(state, device):
-    state = np.squeeze(state)
-
-    #state = rgb2gray(state)
-    #state = state[:, :, 0] * 0.299 + state[:, :, 1] * 0.587 + state[:, :, 2] * 0.114
-
-    #state = state / 255.0
-
-    #state = state.reshape(state.shape[0], state.shape[1], 1)
-
-    state = state.transpose((2, 0, 1))
-
-    state = torch.from_numpy(state)
-    state = state.type(torch.FloatTensor)
-    state = state.unsqueeze_(0)
-    state = state.to(device)
-
-    return state
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
@@ -56,7 +38,7 @@ state = env_info.visual_observations[0]
 print('States look like:', state)
 print('States have shape:', state.shape)
 
-state = transform_visual_observation(state, device)
+state = process_observation(state, device)
 
 score = 0  # initialize the score
 
@@ -82,7 +64,7 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
         env_info = env.reset(train_mode=True)[brain_name]
 
         state = env_info.visual_observations[0]  # get the current state
-        state = transform_visual_observation(state, device)
+        state = process_observation(state, device)
 
         score = 0
         for t in range(max_t):
@@ -90,14 +72,13 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
             env_info = env.step(action)[brain_name]
 
             next_state = env_info.visual_observations[0]  # get the next state
-            next_state = transform_visual_observation(next_state, device)
+            next_state = process_observation(next_state, device)
 
             reward = env_info.rewards[0]  # get the reward
             done = env_info.local_done[0]  # see if episode has finished
             agent.step(state, action, reward, next_state, done)
             state = next_state
             score += reward
-            #print('\nEpisode {}\t TimeStep {} \tScore: {:.2f} \tDone {}'.format(i_episode, t, score, done), end="")
             if done:
                 break
 
@@ -119,11 +100,9 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
 scores = dqn()
 
 # plot the scores
-"""
 fig = plt.figure()
-ax = fig.add_subplot(111)
+#ax = fig.add_subplot(111)
 plt.plot(np.arange(len(scores)), scores)
 plt.ylabel('Score')
 plt.xlabel('Episode #')
 plt.show()
-"""

@@ -68,7 +68,6 @@ def dqn(n_episodes=2000, max_t=1000, eps_start=1.0, eps_end=0.01, eps_decay=0.99
             agent.step(state, action, reward, next_state, done)
             state = next_state
             score += reward
-            # print('\nEpisode {}\t TimeStep {} \tScore: {:.2f} \tDone {}'.format(i_episode, t, score, done), end="")
             if done:
                 break
         scores_window.append(score)  # save most recent score
