@@ -1,5 +1,12 @@
 import numpy as np
 import torch
+import torch.nn as nn
+
+
+def init_weights(m):
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight.data)
+        nn.init.constant_(m.bias, 0.1)
 
 
 def process_observation(observation, device):

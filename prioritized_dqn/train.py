@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 from collections import deque
 from unityagents import UnityEnvironment

@@ -1,9 +1,14 @@
 import os
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 
 from collections import deque
 from unityagents import UnityEnvironment
+
+import sys
+sys.path.append("../")
+
 from agent import Agent
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"

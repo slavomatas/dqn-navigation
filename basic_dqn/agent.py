@@ -7,6 +7,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from collections import namedtuple, deque
+from utils.utils import init_weights
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
@@ -36,6 +37,8 @@ class QNetwork(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1_units)
         self.fc2 = nn.Linear(fc1_units, fc2_units)
         self.fc3 = nn.Linear(fc2_units, action_size)
+
+        #self.apply(init_weights)
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
