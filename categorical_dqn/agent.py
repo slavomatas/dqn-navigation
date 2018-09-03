@@ -26,37 +26,35 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class DistributionalDQN(nn.Module):
-    def __init__(self, input_shape, n_actions):
+    """Actor (Policy) Model."""
+
+    def __init__(self, state_size, action_size, seed, fc1_units=128, fc2_units=128):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+            fc1_units (int): Number of nodes in first hidden layer
+            fc2_units (int): Number of nodes in second hidden layer
+        """
         super(DistributionalDQN, self).__init__()
+        self.seed = torch.manual_seed(seed)
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
-        )
-
-        conv_out_size = self._get_conv_out(input_shape)
         self.fc = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
+            nn.Linear(state_size, fc1_units),
             nn.ReLU(),
-            nn.Linear(512, n_actions * N_ATOMS)
+            nn.Linear(fc1_units, fc2_units),
+            nn.ReLU(),
+            nn.Linear(fc2_units, action_size* N_ATOMS)
         )
 
         self.register_buffer("supports", torch.arange(Vmin, Vmax+DELTA_Z, DELTA_Z))
         self.softmax = nn.Softmax(dim=1)
 
-    def _get_conv_out(self, shape):
-        o = self.conv(torch.zeros(1, *shape))
-        return int(np.prod(o.size()))
-
     def forward(self, x):
         batch_size = x.size()[0]
-        fx = x.float() / 256
-        conv_out = self.conv(fx).view(batch_size, -1)
-        fc_out = self.fc(conv_out)
+        fc_out = self.fc(x)
         return fc_out.view(batch_size, -1, N_ATOMS)
 
     def both(self, x):
@@ -104,10 +102,8 @@ class ReplayBuffer:
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(
-            device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(
-            device)
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
         return (states, actions, rewards, next_states, dones)
 
@@ -119,7 +115,7 @@ class ReplayBuffer:
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, input_shape, action_size, seed):
+    def __init__(self, state_size, action_size, seed):
         """Initialize an Agent object.
 
         Params
@@ -128,13 +124,13 @@ class Agent():
             action_size (int): dimension of each action
             seed (int): random seed
         """
-        self.state_size = input_shape
+        self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
 
         # Q-Network
-        self.qnetwork_local = DistributionalDQN(input_shape, action_size).to(device)
-        self.qnetwork_target = DistributionalDQN(input_shape, action_size).to(device)
+        self.qnetwork_local = DistributionalDQN(state_size, action_size, seed).to(device)
+        self.qnetwork_target = DistributionalDQN(state_size, action_size, seed).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         self.prioritized_replay_alpha = 0.6

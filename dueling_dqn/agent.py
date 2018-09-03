@@ -17,9 +17,9 @@ UPDATE_EVERY = 4  # how often to update the network
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class SimpleQNetwork(nn.Module):
+class DuelingQNetwork(nn.Module):
     def __init__(self, obs_len, actions_n):
-        super(SimpleQNetwork, self).__init__()
+        super(DuelingQNetwork, self).__init__()
 
         self.fc_val = nn.Sequential(
             nn.Linear(obs_len, 512),
@@ -43,9 +43,9 @@ class SimpleQNetwork(nn.Module):
         return val + adv - adv.mean()
 
 
-class DuelingQNetwork(nn.Module):
+class DuelingCNNQNetwork(nn.Module):
     def __init__(self, input_shape, n_actions):
-        super(DuelingQNetwork, self).__init__()
+        super(DuelingCNNQNetwork, self).__init__()
 
         self.conv = nn.Sequential(
             nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
@@ -83,7 +83,7 @@ class DuelingQNetwork(nn.Module):
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, input_shape, action_size, seed):
+    def __init__(self, state_size, action_size, seed):
         """Initialize an Agent object.
 
         Params
@@ -92,13 +92,13 @@ class Agent():
             action_size (int): dimension of each action
             seed (int): random seed
         """
-        self.state_size = input_shape
+        self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(input_shape, action_size).to(device)
-        self.qnetwork_target = DuelingQNetwork(input_shape, action_size).to(device)
+        self.qnetwork_local = DuelingQNetwork(state_size, action_size).to(device)
+        self.qnetwork_target = DuelingQNetwork(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         self.prioritized_replay_alpha = 0.6
@@ -134,8 +134,7 @@ class Agent():
             state (array_like): current state
             eps (float): epsilon, for epsilon-greedy action selection
         """
-        # state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-
+        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
