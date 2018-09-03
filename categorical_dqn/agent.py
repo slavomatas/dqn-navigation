@@ -1,14 +1,16 @@
+import utils
 import random
-import traceback
-
 import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 
-from collections import namedtuple, deque
+from collections import deque, namedtuple
+from torch.autograd import Variable
+
+from utils.utils import one_hot, EPS
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
@@ -23,52 +25,6 @@ N_ATOMS = 51
 DELTA_Z = (Vmax - Vmin) / (N_ATOMS - 1)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-class DistributionalDQN(nn.Module):
-    """Actor (Policy) Model."""
-
-    def __init__(self, state_size, action_size, seed, fc1_units=128, fc2_units=128):
-        """Initialize parameters and build model.
-        Params
-        ======
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
-            seed (int): Random seed
-            fc1_units (int): Number of nodes in first hidden layer
-            fc2_units (int): Number of nodes in second hidden layer
-        """
-        super(DistributionalDQN, self).__init__()
-        self.seed = torch.manual_seed(seed)
-
-        self.fc = nn.Sequential(
-            nn.Linear(state_size, fc1_units),
-            nn.ReLU(),
-            nn.Linear(fc1_units, fc2_units),
-            nn.ReLU(),
-            nn.Linear(fc2_units, action_size* N_ATOMS)
-        )
-
-        self.register_buffer("supports", torch.arange(Vmin, Vmax+DELTA_Z, DELTA_Z))
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, x):
-        batch_size = x.size()[0]
-        fc_out = self.fc(x)
-        return fc_out.view(batch_size, -1, N_ATOMS)
-
-    def both(self, x):
-        cat_out = self(x)
-        probs = self.apply_softmax(cat_out)
-        weights = probs * self.supports
-        res = weights.sum(dim=2)
-        return cat_out, res
-
-    def qvals(self, x):
-        return self.both(x)[1]
-
-    def apply_softmax(self, t):
-        return self.softmax(t.view(-1, N_ATOMS)).view(t.size())
 
 
 class ReplayBuffer:
@@ -103,7 +59,7 @@ class ReplayBuffer:
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
         next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
+        dones = torch.from_numpy(np.vstack([(0.0 if e.done else 1.0) for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
 
         return (states, actions, rewards, next_states, dones)
 
@@ -112,30 +68,61 @@ class ReplayBuffer:
         return len(self.memory)
 
 
-class Agent():
-    """Interacts with and learns from the environment."""
-
-    def __init__(self, state_size, action_size, seed):
-        """Initialize an Agent object.
-
+class DistributionalDQN(nn.Module):
+    def __init__(self, state_size, action_size, seed, fc1_units=128, fc2_units=128):
+        """Initialize parameters and build model.
         Params
         ======
-            state_size (int): dimension of each state
-            action_size (int): dimension of each action
-            seed (int): random seed
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+            fc1_units (int): Number of nodes in first hidden layer
+            fc2_units (int): Number of nodes in second hidden layer
         """
+        super(DistributionalDQN, self).__init__()
+        self.seed = torch.manual_seed(seed)
+
+        self.fc = nn.Sequential(
+            nn.Linear(state_size, fc1_units),
+            nn.ReLU(),
+            nn.Linear(fc1_units, fc2_units),
+            nn.ReLU(),
+            nn.Linear(fc2_units, action_size* N_ATOMS)
+        )
+
+        self.register_buffer("supports", torch.arange(Vmin, Vmax+DELTA_Z, DELTA_Z))
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        fc_out = self.fc(x)
+        logits = fc_out.view(batch_size, -1, N_ATOMS)
+        probs = nn.functional.softmax(logits, 2)
+        return probs
+
+
+class Agent():
+    def __init__(self, state_size, action_size, seed):
+
+        self.num_atoms = N_ATOMS
+        self.vmin = float(Vmin)
+        self.vmax = float(Vmax)
+
+        self.delta_z = (self.vmax - self.vmin) / (self.num_atoms - 1)
+
+        zpoints = np.linspace(Vmin, Vmax, N_ATOMS).astype(np.float32)
+        self.zpoints = Variable(torch.from_numpy(zpoints).unsqueeze(0)).to(device)
+
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
 
-        # Q-Network
-        self.qnetwork_local = DistributionalDQN(state_size, action_size, seed).to(device)
-        self.qnetwork_target = DistributionalDQN(state_size, action_size, seed).to(device)
-        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
+        self.num_actions = action_size
 
-        self.prioritized_replay_alpha = 0.6
-        self.prioritized_replay_beta0 = 0.4
-        self.prioritized_replay_beta_iters = 100000
+        # Q-Network
+        self.online_q_net = DistributionalDQN(state_size, action_size, seed).to(device)
+        self.target_q_net = DistributionalDQN(state_size, action_size, seed).to(device)
+        self.optimizer = optim.Adam(self.online_q_net.parameters(), lr=LR)
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
@@ -163,18 +150,11 @@ class Agent():
             state (array_like): current state
             eps (float): epsilon, for epsilon-greedy action selection
         """
-        # state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-
-        self.qnetwork_local.eval()
-        with torch.no_grad():
-            action_values = self.qnetwork_local(state)
-        self.qnetwork_local.train()
+        self.online_q_net.eval()
+        self.online_q_net.train()
 
         # Epsilon-greedy action selection
-        if random.random() > eps:
-            return np.argmax(action_values.cpu().data.numpy())
-        else:
-            return random.choice(np.arange(self.action_size))
+        return self.get_action(state, eps)
 
     def learn(self, experiences, gamma):
         """Update value parameters using given batch of experience tuples.
@@ -184,51 +164,21 @@ class Agent():
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples
             gamma (float): discount factor
         """
-        try:
+        states, actions, rewards, next_states, non_ends = experiences
 
-            states, actions, rewards, next_states, dones = experiences
-            batch_size = len(states)
+        actions = one_hot(actions, self.action_size, device)
+        targets = self.compute_targets(rewards, next_states, non_ends, gamma)
+        states = Variable(states)
+        actions = Variable(actions)
+        targets = Variable(targets)
+        loss = self.loss(states, actions, targets)
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        #return loss.data[0]
 
-            states_v = torch.tensor(states).to(device)
-            actions_v = torch.tensor(actions).to(device)
-            next_states_v = torch.tensor(next_states).to(device)
-
-            # next state distribution
-            next_distr_v, next_qvals_v = self.qnetwork_target.both(next_states_v)
-            next_actions = next_qvals_v.max(1)[1].data.cpu().numpy()
-            next_distr = self.qnetwork_target.apply_softmax(next_distr_v).data.cpu().numpy()
-
-            next_best_distr = next_distr[range(batch_size), next_actions]
-
-            # project our distribution using Bellman update
-            proj_distr = self.distr_projection(next_best_distr, rewards, dones, Vmin, Vmax, N_ATOMS, gamma)
-
-            # calculate net output
-            distr_v = self.qnetwork_local(states_v)
-            #print("distr_v.shape {} actions_v.shape {}".format(distr_v.shape, actions_v.shape))
-            state_action_values = distr_v[range(batch_size), actions_v.data]
-            state_log_sm_v = F.log_softmax(state_action_values, dim=1)
-            proj_distr_v = torch.tensor(proj_distr).to(device)
-
-            """
-            if save_prefix is not None:
-                pred = F.softmax(state_action_values, dim=1).data.cpu().numpy()
-                save_transition_images(batch_size, pred, proj_distr, next_best_distr, dones, rewards, save_prefix)
-            """
-
-            loss_v = -state_log_sm_v * proj_distr_v
-            loss_v = loss_v.sum(dim=1).mean()
-
-            # Minimize the loss
-            self.optimizer.zero_grad()
-            loss_v.backward()
-            self.optimizer.step()
-
-            # ------------------- update target network ------------------- #
-            self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
-        except:
-            print("====> Exception: Failed to execute learn")
-            print(traceback.print_exc())
+        # ------------------- update target network ------------------- #
+        self.soft_update(self.online_q_net, self.target_q_net, TAU)
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.
@@ -240,52 +190,113 @@ class Agent():
             target_model (PyTorch model): weights will be copied to
             tau (float): interpolation parameter
         """
-        # print("soft_update")
-
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
+    def get_action(self, state, eps):
+        """Run Greedy-Epsilon for the given state.
 
-    def distr_projection(self, next_distr, rewards, dones, Vmin, Vmax, n_atoms, gamma):
-        """
-        Perform distribution projection aka Catergorical Algorithm from the
-        "A Distributional Perspective on RL" paper
-        """
-        rewards = rewards.data.cpu().numpy()
-        dones = dones.data.cpu().numpy().astype(np.bool)
+        params:
+            state: numpy-array [num_frames, w, h]
 
-        batch_size = len(rewards)
-        proj_distr = np.zeros((batch_size, n_atoms), dtype=np.float32)
-        delta_z = (Vmax - Vmin) / (n_atoms - 1)
-        for atom in range(n_atoms):
-            tz_j = np.minimum(Vmax, np.maximum(Vmin, rewards + (Vmin + atom * delta_z) * gamma))
-            b_j = (tz_j - Vmin) / delta_z
-            l = np.floor(b_j).astype(np.int64)
-            u = np.ceil(b_j).astype(np.int64)
-            eq_mask = u == l
-            eq_mask = np.squeeze(eq_mask)
-            proj_distr[eq_mask, l[eq_mask]] += next_distr[eq_mask, atom]
-            ne_mask = u != l
-            ne_mask = np.squeeze(ne_mask)
-            proj_distr[ne_mask, l[ne_mask]] += next_distr[ne_mask, atom] * (u - b_j)[ne_mask]
-            proj_distr[ne_mask, u[ne_mask]] += next_distr[ne_mask, atom] * (b_j - l)[ne_mask]
-        if dones.any():
-            proj_distr[np.squeeze(dones)] = 0.0
-            tz_j = np.minimum(Vmax, np.maximum(Vmin, rewards[dones]))
-            b_j = (tz_j - Vmin) / delta_z
-            l = np.floor(b_j).astype(np.int64)
-            u = np.ceil(b_j).astype(np.int64)
-            eq_mask = u == l
-            eq_dones = dones.copy()
-            eq_dones[dones] = eq_mask
-            eq_dones = np.squeeze(eq_dones)
-            if eq_dones.any():
-                proj_distr[eq_dones, l] = 1.0
-            ne_mask = u != l
-            ne_dones = dones.copy()
-            ne_dones[dones] = ne_mask
-            ne_dones = np.squeeze(ne_dones)
-            if ne_dones.any():
-                proj_distr[ne_dones, l] = (u - b_j)[ne_mask]
-                proj_distr[ne_dones, u] = (b_j - l)[ne_mask]
-        return proj_distr
+        return:
+            action: int, in range [0, num_actions)
+        """
+        if np.random.uniform() <= eps:
+            action = np.random.randint(0, self.num_actions)
+            return action
+
+        q_vals = self.online_q_values(state)
+        #utils.assert_eq(q_vals.size(0), 1)
+        q_vals = q_vals.view(-1)
+        q_vals = q_vals.cpu().numpy()
+        action = q_vals.argmax()
+        return action
+
+    def _q_values(self, q_net, states):
+        """internal function to compute q_value
+
+        params:
+            q_net: self.online_q_net or self.target_q_net
+            states: Variable [batch, channel, w, h]
+        """
+        probs = q_net(states) # [batch, num_actions, num_atoms]
+        q_vals = (probs * self.zpoints).sum(2)
+        return q_vals, probs
+
+    def target_q_values(self, states):
+        states = Variable(states, volatile=True)
+        q_vals, _ = self._q_values(self.target_q_net, states)
+        return q_vals.data
+
+    def online_q_values(self, states):
+        states = Variable(states, volatile=True)
+        q_vals, _ = self._q_values(self.online_q_net, states)
+        return q_vals.data
+
+    def compute_targets(self, rewards, next_states, non_ends, gamma):
+        """Compute batch of targets for distributional dqn
+
+        params:
+            rewards: Tensor [batch, 1]
+            next_states: Tensor [batch, channel, w, h]
+            non_ends: Tensor [batch, 1]
+            gamma: float
+        """
+        # get next distribution
+        next_states = Variable(next_states, volatile=True)
+
+        # [batch, num_actions], [batch, num_actions, num_atoms]
+        next_q_vals, next_probs = self._q_values(self.target_q_net, next_states)
+        next_actions = next_q_vals.data.max(1, True)[1] # [batch, 1]
+        next_actions = one_hot(next_actions, self.num_actions, device).unsqueeze(2)
+        next_greedy_probs = (next_actions * next_probs.data).sum(1)
+
+        # transform the distribution
+        rewards = rewards
+        non_ends = non_ends
+        proj_zpoints = rewards + gamma * non_ends * self.zpoints.data
+        proj_zpoints.clamp_(self.vmin, self.vmax)
+
+        # project onto shared support
+        b = (proj_zpoints - self.vmin) / self.delta_z
+        lower = b.floor()
+        upper = b.ceil()
+        # handle corner case where b is integer
+        eq = (upper == lower).float()
+        lower -= eq
+        lt0 = (lower < 0).float()
+        lower += lt0
+        upper += lt0
+
+        # note: it's faster to do the following on cpu
+        ml = (next_greedy_probs * (upper - b)).cpu().numpy()
+        mu = (next_greedy_probs * (b - lower)).cpu().numpy()
+
+        lower = lower.cpu().numpy().astype(np.int32)
+        upper = upper.cpu().numpy().astype(np.int32)
+
+        batch_size = rewards.size(0)
+        mass = np.zeros((batch_size, self.num_atoms), dtype=np.float32)
+        brange = range(batch_size)
+        for i in range(self.num_atoms):
+            mass[brange, lower[brange, i]] += ml[brange, i]
+            mass[brange, upper[brange, i]] += mu[brange, i]
+
+        return torch.from_numpy(mass).to(device)
+
+    def loss(self, states, actions, targets):
+        """
+        params:
+            states: Variable [batch, channel, w, h]
+            actions: Variable [batch, num_actions] one hot encoding
+            targets: Variable [batch, num_atoms]
+        """
+        #utils.assert_eq(actions.size(1), self.num_actions)
+
+        actions = actions.unsqueeze(2)
+        probs = self.online_q_net(states) # [batch, num_actions, num_atoms]
+        probs = (probs * actions).sum(1) # [batch, num_atoms]
+        xent = -(targets * torch.log(probs.clamp(min=EPS))).sum(1)
+        xent = xent.mean(0)
+        return xent

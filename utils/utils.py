@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+EPS = 1e-7
+
 
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -27,3 +29,11 @@ def process_observation(observation, device):
     observation = torch.from_numpy(observation).type(torch.FloatTensor).unsqueeze(0).to(device)
 
     return observation
+
+
+def one_hot(x, n, device):
+    assert x.dim() == 2
+    one_hot_x = torch.zeros(x.size(0), n).to(device)
+    one_hot_x.scatter_(1, x, 1)
+    return one_hot_x
+
