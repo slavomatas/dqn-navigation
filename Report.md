@@ -2,28 +2,73 @@
 
 ## Summary
 
- In this project we trained a DQN reinforcement learning agent to reach a score of +13 on 
+ In this project I trained a DQN reinforcement learning agent to reach a score of +13 on 
  average over 100 episodes in the Udacity Deep Reinforcement Learing Nanodegree Bananas 
  environment. (A simplified version of the Banana Collectors Unity-ML environment.) 
  In this environment positive reward is accumulated by running into yellow "good" bananas and 
  avoiding blue "bad" bananas which return -1 reward. An episode ends after a fixed interval of 300 
  steps.
 
- In addition to adapting provided code to reach this score we contribute two useful components. 
- The first is a [simple wrapper class](peel.py) for the provided Unity environment which makes it 
- directly compatible with the existing class DQN code which was designed for an OpenAI Gym 
- interface.
 
- The second and more important contribution is to establish human baselines for this environment. 
- Finally we propose an simple alternate measure for declaring this environment "solved" which 
- better measures the ability of an agent.
+I have implemented several variants of DQN Agents and Deep Q-Networks
 
-## Human Level Performance
+## 1. Basic DQN Agent with replay buffer
 
-A human can reach a score of +17 in 4 episodes given a proper control scheme. The
-average score over 100 episodes for one human was +16 with a minimum of +12 and a maximum of +22.
-All learning was performed "from pixels" as opposed to the DQN agent which was trained
-on non-visual vector observations, thus this is not strictly a bananas-to-bananas comparison.
+Basic DQN agent implements Deep Q-Learning Algorithm which has the following steps 
+
+1. Initialize parameters for Q(s, a) and Q ˆ(s, a) with random weights, \epsilon ← 1.0,
+and empty replay buffer
+2. With probability \(\epsilon\), select a random action a, otherwise a = arg max<sub>a</sub> Q <sub>s,a</sub>
+3. Execute action a in ML Agents and observe reward r and the next state s′
+4. Store transition (s, a, r, s′) in the replay buffer
+5. Sample a random minibatch of transitions from the replay buffer
+6. For every transition in the buffer, calculate target y = r if the episode has
+ended at this step or y = r + γ max<sub>a'∈A</sub>a' Q ˆ<sub>s',a'</sub> otherwise
+7. Calculate loss: L = (Q<sub>s,a</sub> − y)<sup>2</sup>
+8. Update Q(s, a) using the SGD algorithm by minimizing the loss in respect
+to model parameters
+9. Every 4 steps copy weights from Q to Q ˆ<sub>t</sub>
+10. Repeat from step 2 until reaching average reward over last 100 episodes of 13 
+
+
+## 2. DQN Agent with prioritized replay buffer 
+
+The basic DQN used the replay buffer to break the correlation between immediate
+transitions in our episodes. The examples we experience during the episode will be highly correlated, as most of the
+time the environment is "smooth" and doesn't change much according to our actions.
+However, the SGD method assumes that the data we use for training has a i.i.d.
+property. To solve this problem, the classic DQN method used a large buffer of
+transitions, randomly sampled to get the next training batch.
+
+The main concept of prioritized replay is the criterion by which the importance of each transition is measured. 
+One idealised criterion would be the amount the RL agent can learn from a transition in its current state. 
+A reasonable proxy for this measure is the magnitude of a transition’s TD error δ, which indicates how ‘surprising’
+or unexpected the transition is. 
+
+There are couple of variants of TD-error prioritization. For this project I have used proportional prioritization 
+where pi = |δ,<sub>i</sub>| + \epsilon, where \epsilon is a small positive constant that prevents the edge-case of transitions not being revisited once their
+error is zero. 
+
+In order to calculate TD-Errors the agent loss calculation has to be implemented explicitly as the MSELoss in PyTorch doesnt support weights. 
+Implementing MSE loss explicitly allows us to take into account weights of samples and keep individual loss values for every sample. Those
+values will be passed to the priority replay buffer to update priorities. Small values are added to every loss to handle the situation of zero loss value, which will lead
+to zero priority of entry.
+
+Snippet of the code for MSE Loss calculation:
+
+losses_v = weights * (Q_expected - Q_targets) ** 2
+
+loss = losses_v.mean()
+
+prios = losses_v + 1e-5
+  
+
+## 3. DQN Agent for pixels navigation with prioritized replay buffer
+ 
+## 4. Dueling DQN Agent
+
+## 5. Categorical DQN Agent 
+
 
 ### Learning
 
