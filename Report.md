@@ -154,7 +154,13 @@ The rest of the Dueling DQN Agent implementation is the same as for Basic or Pri
 
 ## 5. Categorical DQN Agent 
 
+The fundamental difference between all of the aboved described DQN Agents and Categorical DQN Agent 
+is that Q-values in Categorical DQN Agent are replaced with more generic Q-value probability distribution.
 
+Both the Q-learning and value iteration methods are working with the values of actions or states 
+represented as simple numbers and showing how much total reward we can achieve from state or action. 
+However, in complicated environments, the future could be stochastic, giving us different values with
+different probabilities. 
 
 <p align=center>
 	<img width=70% src="images/human-2-learning.png"/>
