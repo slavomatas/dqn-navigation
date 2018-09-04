@@ -283,12 +283,16 @@ As the Q-Network predicts probability distributions of actions forward method us
 
  All training was performed on a single Ubuntu 18.04 desktop with an NVIDIA GTX 1080ti. 
 
-
-## Ideas for Future Work
-
-1. Navigation with Pixels - so far i have tested Basic DQN Agent with Prioritized Experience Replay using visual observations (frames). 
-Unfortunately DQN Agent performance didnt show any progress during the learning. i will try to implement frame stacking (buffering)   
-
 ## Conclusion
 
 Comparing the performance scores shows that Dueling DQN Agent and DQN Agent with Prioritized Experience Replay achieved the best performance. 
+
+Navigation with Pixels - so far i have tested Basic DQN Agent with Prioritized Experience Replay using visual observations (frames). 
+Unfortunately DQN Agent performance didnt show significant progress during the learning. 
+I will try to implement few changes/improvements:
+    frame stacking (buffering) 
+    reward clipping
+
+Categorical DQN - while this DQN agent good shows learning progress during training, i was expecting that the overall performance would exceed Dueling DQN agent 
+and DQN Agent with Prioritized Experience Replay. I will try to investigate and test further. 
+
