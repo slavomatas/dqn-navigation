@@ -10,7 +10,7 @@
 
 I have implemented several variants of DQN Agents
 
-# 1. Basic DQN Agent with replay buffer
+# 1. Basic DQN Agent with Experience Reply
 
 Basic DQN agent implements Deep Q-Learning Algorithm which has the following steps 
 
@@ -45,7 +45,7 @@ Fully Connected Layer (128 units)
 Fully Connected Layer (4 units - action size)
 ```
 
-## 2. DQN Agent with prioritized replay buffer 
+## 2. DQN Agent with Prioritized Experience Reply 
 
 The basic DQN used the replay buffer to break the correlation between immediate
 transitions in our episodes. The examples we experience during the episode will be highly correlated, as most of the
@@ -68,13 +68,29 @@ Implementing MSE loss explicitly allows us to take into account weights of sampl
 values will be passed to the priority replay buffer to update priorities. Small values are added to every loss to handle the situation of zero loss value, which will lead
 to zero priority of entry.
 
-Snippet of the code for MSE Loss calculation:
+Snippet of the code of the explicit MSE Loss calculation:
 
-losses_v = weights * (Q_expected - Q_targets) ** 2
+    # Get max predicted Q values (for next states) from target model
+    Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
 
-loss = losses_v.mean()
+    # Compute Q targets for current states 
+    Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
-prios = losses_v + 1e-5
+    # Get expected Q values from local model
+    Q_expected = self.qnetwork_local(states).gather(1, actions)
+
+    # Compute loss
+    losses_v = weights * (Q_expected - Q_targets) ** 2
+    loss = losses_v.mean()
+    prios = losses_v + 1e-5
+  
+    # Minimize the loss
+    self.optimizer.zero_grad()
+    loss.backward()
+    self.optimizer.step()
+
+    # Update replay buffer priorities
+    self.memory.update_priorities(idxes, prios.data.cpu().numpy())
   
 
 The Deep Q-Network architecture of the DQN Agent is following (the same as for basic DQN Agent):
@@ -91,9 +107,9 @@ Fully Connected Layer (128 units)
 Fully Connected Layer (4 units - action size)
 ```
 
-## 3. DQN Agent for pixels navigation with prioritized replay buffer
+## 3. DQN Agent for pixels navigation with Prioritized Experience Reply
  
-## 4. Dueling DQN Agent
+## 4. Dueling DQN Agent with Prioritized Experience Reply
 
 The main idea behind Dueling DQN Agent is that the Q-values Q(s, a) Q-network is
 trying to approximate can be divided into quantities: the value of the state V(s) and
@@ -150,7 +166,7 @@ Fully Connected Layer (4 units - actions size)
         adv = self.fc_adv(x)
         return val + adv - adv.mean()
 
-The rest of the Dueling DQN Agent implementation is the same as for Basic or Prioritied DQN Agent.
+The Dueling DQN Agent implementation is the same as implementation of Prioritized DQN Agent, the difference is the Q-Network as described above.
 
 ## 5. Categorical DQN Agent 
 
@@ -162,65 +178,72 @@ represented as simple numbers and showing how much total reward we can achieve f
 However, in complicated environments, the future could be stochastic, giving us different values with
 different probabilities. 
 
-<p align=center>
-	<img width=70% src="images/human-2-learning.png"/>
-</p>
+The overall idea is to predict the distribution of value for every action.
+As shown in the original paper the Bellman equation can be generalized
+for a distribution case and it will have a form Z(x, a) = D R(x, a) + γZ(x', a'), which
+is very similar to the familiar Bellman equation, but now Z(x, a), R(x, a) are the
+probability distributions and not numbers.
+
+The resulting distribution can be used to train our network to give better predictions
+of value distribution for every action of the given state, exactly the same way as
+with Q-learning. The only difference will be in the loss function, which now has to
+be replaced to something suitable for distributions' comparison. There are several
+alternatives available, for example Kullback-Leibler (KL)-divergence (or crossentropy loss) 
+used in classification problems or the Wasserstein metric.
+
+The main part of the method is probability distribution, which we're
+approximating. There are lots of ways to represent the distribution, 
+here i used generic parametric distribution that is basically a fixed
+amount of values placed regularly on a values range. The range of values should
+cover the range of possible accumulated discounted reward. In the paper, the
+authors did experiments with various amounts of atoms, but the best results were
+obtained with the range being split on N_ATOMS=51 intervals in the range of values
+from Vmin=-10 to Vmax=10.
+
+For every atom (we have 51 of them), the network predicts the probability that
+future discounted value will fall into this atom's range. The central part of the
+method is the code, which performs the contraction of distribution of the next
+state's best action using gamma, adds local reward to the distribution and projects
+the results back into our original atoms.
+
+The architecture of the Q-Network is following:
+
+```
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (4*51 units - actions size*number of atoms)
+```
+
+As the Q-Network predicts probability distributions of actions forward method uses softmax:
+
+    def forward(self, x):
+        batch_size = x.size()[0]
+        fc_out = self.fc(x)
+        logits = fc_out.view(batch_size, -1, N_ATOMS)
+        probs = nn.functional.softmax(logits, 2)
+        return probs
+
 
 ## Methods
 
- All training was performed on a single Windows 10 desktop machine with an NVIDIA GTX 970. 
+ All training was performed on a single Ubuntu 18.04 desktop with an NVIDIA GTX 1080ti. 
 
 ### System Setup
 
  - Python:			3.6.6
  - CUDA:			9.0
  - Pytorch: 		0.4.1
- - NVIDIA Driver:  	388.13
+ - NVIDIA Driver:  	390.77
  - Conda:			4.5.10
 
-### Learning Algorithm
-
- The agent uses an implementation of the Deep Q-Learning algorithm with experience replay and a 
- target Q Network. 
-
- It is important to note that both experience replay and the target Q network
- are useful in the context of neural network function approximation because of the 
- independent and identically distributed (IID) assumption built into stochastic gradient update 
- methods. Without these correlation breaking steps networks tend to be biased toward recent
- experience "forgetting" earlier experience which may still be important and representative for
- the task at hand. 
-
-#### Outer Loop
-
-The agent follows the standard State, Action, Reward, State progression for an off-policy 
-reinforcement learning algorithm.
-
- - The agent selects an action in an epsilon-greedy fashion given the current state and an 
-   epsilon value
- - That action is passed to the environment which returns
- 	- The next state, the reward, and a "done" signal if the episode is complete.
- - The agent is then passed the tuple of (state, action, reward, next state, done signal) which it uses
-   to update its memory and Q networks.
- - Epsilon is then decayed
- - The above is repeated until the environment returns a done signal or the maximum alloted number
-   of episodes is reached.
 
 ##### DQN Agent
-
-The DQN agent is a Python class which wraps two identical Pytorch neural network models. 
-Each Q network was used as provided and has this structure:
-
-```
-Fully Connected Layer (64 units)
-		  |
-		ReLU
-		  |
-Fully Connected Layer (64 units)
-		  |
-		ReLU
-		  |
-Fully Connected Layer (4 units)
-```
 
 The networks were trained using the [Adam optimizer](https://pytorch.org/docs/stable/optim.html#torch.optim.Adam).
 The learning rate (`LR`) was set to 0.0001. Betas, eps, weight_decay, and amsgrad were all left as 
@@ -257,20 +280,6 @@ Note that there was no prioritization of replay samples.
 
 ## Ideas for Future Work - Meet the Minimum Score Criteria
 
-### Investigation
-
-As noted above the trained agent demonstrates remarkably poor performance on *some* episodes even
-after reaching a relatively high level of average performance. It would be interesting to explore
-exactly why some episodes are so challenging to the agent. To do so developing a method to isolate
-and replay those *episodes* would be useful.
-
-### Prioritized Replay from Failed Episodes
-
-While the original approach to prioritized replay relied on the TD error to determine
-which state transitions were "useful" another metric could be to focus on entire episodes that
-were challenging for the agent and prioritize learning from those. Extending this one might explore
-if focusing on the extremes of performance, the very good and the very bad and prioritizing those
-episodes for learning could help narrow the range of performance across episodes.
 
 ## Conclusion
 
