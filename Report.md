@@ -14,22 +14,35 @@ I have implemented several variants of DQN Agents
 
 Basic DQN agent implements Deep Q-Learning Algorithm which has the following steps 
 
-1. Initialize parameters for Q(s, a) and Q ˆ(s, a) with random weights, \epsilon ← 1.0,
+1. Initialize parameters for Q(s, a) and Q ˆ(s, a) with random weights, epsilon ← 1.0,
 and empty replay buffer
+
 2. With probability epsilon, select a random action a, otherwise a = arg max<sub>a</sub> Q <sub>s,a</sub>
+
 3. Execute action in Unity-ML environment and observe reward r and the next state s′
-4. Store transition (s, a, r, s′) in the replay buffer
-5. Sample a random minibatch of transitions from the replay buffer
+
+4. Store transition (s, a, r, s′) in the replay buffer (buffer size=10000)
+
+5. Sample a random minibatch (batch size = 64) of transitions from the replay buffer
+
 6. For every transition in the buffer, calculate target y = r if the episode has
 ended at this step or y = r + γ max<sub>a'∈A</sub>a' Q ˆ<sub>s',a'</sub> otherwise
+A discount factor - gamma of 0.99 is applied.
+
 7. Calculate loss: L = (Q<sub>s,a</sub> − y)<sup>2</sup>
+
 8. Update Q(s, a) using the SGD algorithm by minimizing the loss in respect
-to model parameters
-9. Every 4 steps copy weights from local Q-network to target Q-network ˆ<sub>t</sub>
+to model parameters.  The learning rate for Adam optimizer (`LR`) was set to 0.0001. 
+Betas, eps, weight_decay, and amsgrad were all left as default (this applies to all networks as described below).
+
+9. Every 4 steps copy weights from local Q-network to target Q-network <sub>t</sub>
 The target network is frozen for several time steps and then the target network weights are updated 
 by copying the weights from the actual Q network. Freezing the target network for a while 
 and then updating its weights with the actual Q network weights stabilizes the training.
+The fractional update was controlled by the parameter tau which was set to 0.001.
+
 10. Repeat from step 2 until reaching average reward over last 100 episodes of 13 
+
 
 The Deep Q-Network architecture of the Basic DQN Agent is following (for vector observations):
 
@@ -230,10 +243,6 @@ As the Q-Network predicts probability distributions of actions forward method us
         return probs
 
 
-## Methods
-
- All training was performed on a single Ubuntu 18.04 desktop with an NVIDIA GTX 1080ti. 
-
 ### System Setup
 
  - Python:			3.6.6
@@ -242,52 +251,13 @@ As the Q-Network predicts probability distributions of actions forward method us
  - NVIDIA Driver:  	390.77
  - Conda:			4.5.10
 
+ All training was performed on a single Ubuntu 18.04 desktop with an NVIDIA GTX 1080ti. 
 
-##### DQN Agent
 
-The networks were trained using the [Adam optimizer](https://pytorch.org/docs/stable/optim.html#torch.optim.Adam).
-The learning rate (`LR`) was set to 0.0001. Betas, eps, weight_decay, and amsgrad were all left as 
-default.
+## Ideas for Future Work
 
-The first Q network (the "local" network) was used for action selection. The second
-Q network was the target network and was used as a more stable reference during the temporal 
-difference (TD) error calculation.
-
-###### Action Selection
-
-The current state was fed to the local Q network to obtain an array of action values. This
-was then sampled in an epsilon-greedy fashion. Epsilon was initialized to 1.0 and decayed by 0.995
-each episode. A minimum epsilon was set to 0.1 to preserve some exploration even late in training.
-(i.e. episode 460 and beyond)
-
-###### Updates and Learning
-
-The agent maintained a replay buffer of up-to 10000 memories i.e. (state, action, reward, 
-next_state, done) tuples. Every 4 steps the agent would sample 64 memories randomly from this 
-buffer and use those to compute TD errors. A discount factor (`gamma`) of 0.99 was applied during
-the calculation of TD errors.
-
-Those errors were then used to compute a mean squared error (MSE) for the batch. This was passed to
-Pytorch to calculate error gradients. Finally the network weights were updated by the Adam 
-optimizer using those gradients.
-
-After updating the local network (the network from which actions are chosen) a "soft" update was
-applied to the target network such that it would track the learning of the local network but at
-a greatly reduced rate. The fractional update was controlled by the parameter `tau` which was
-set to 0.001.
-
-Note that there was no prioritization of replay samples.
-
-## Ideas for Future Work - Meet the Minimum Score Criteria
-
+1. Navigation with Pixels - so far i have tested DQN Agent with Prioritized Experience Replay using visual observations (frames)
 
 ## Conclusion
 
-In this project we adapted a stock DQN agent to a novel environment, providing useful adapter code
-along the way. In addition we explored human level performance in this environment and used it
-to contrast with the performance and robustness of a trained agent. As a consequence of that
-exploration we discovered that agents which meet the original criteria for solving this
-environment do not actually produce robust performance. In response we proposed an alternative
-solution criteria which would better match human style play and better select for agents with
-robust performance in this environment. Specifically that the Bananas environment is considered 
-solved when the agent maintains a minimum score of 10 for 500 episodes.
+From the performance scores is evident that Dueling DQN Agent and DQN Agent with Prioritized Experience Replay achieved the best performance. 
