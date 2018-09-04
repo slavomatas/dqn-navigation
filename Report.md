@@ -3,14 +3,13 @@
 ## Summary
 
  In this project I trained a DQN reinforcement learning agent to reach a score of +13 on 
- average over 100 episodes in the Udacity Deep Reinforcement Learing Nanodegree Bananas 
- environment. (A simplified version of the Banana Collectors Unity-ML environment.) 
+ average over 100 episodes in the Unity-ML environment. 
  In this environment positive reward is accumulated by running into yellow "good" bananas and 
  avoiding blue "bad" bananas which return -1 reward. An episode ends after a fixed interval of 300 
  steps.
 
 
-I have implemented several variants of DQN Agents and Deep Q-Networks
+I have implemented several variants of DQN Agents
 
 # 1. Basic DQN Agent with replay buffer
 
@@ -18,8 +17,8 @@ Basic DQN agent implements Deep Q-Learning Algorithm which has the following ste
 
 1. Initialize parameters for Q(s, a) and Q ˆ(s, a) with random weights, \epsilon ← 1.0,
 and empty replay buffer
-2. With probability \(\epsilon\), select a random action a, otherwise a = arg max<sub>a</sub> Q <sub>s,a</sub>
-3. Execute action a in ML Agents and observe reward r and the next state s′
+2. With probability epsilon, select a random action a, otherwise a = arg max<sub>a</sub> Q <sub>s,a</sub>
+3. Execute action in Unity-ML environment and observe reward r and the next state s′
 4. Store transition (s, a, r, s′) in the replay buffer
 5. Sample a random minibatch of transitions from the replay buffer
 6. For every transition in the buffer, calculate target y = r if the episode has
@@ -27,9 +26,25 @@ ended at this step or y = r + γ max<sub>a'∈A</sub>a' Q ˆ<sub>s',a'</sub> oth
 7. Calculate loss: L = (Q<sub>s,a</sub> − y)<sup>2</sup>
 8. Update Q(s, a) using the SGD algorithm by minimizing the loss in respect
 to model parameters
-9. Every 4 steps copy weights from Q to Q ˆ<sub>t</sub>
+9. Every 4 steps copy weights from local Q-network to target Q-network ˆ<sub>t</sub>
+The target network is frozen for several time steps and then the target network weights are updated 
+by copying the weights from the actual Q network. Freezing the target network for a while 
+and then updating its weights with the actual Q network weights stabilizes the training.
 10. Repeat from step 2 until reaching average reward over last 100 episodes of 13 
 
+The Deep Q-Network architecture of the Basic DQN Agent is following (for vector observations):
+
+```
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (4 units - action size)
+```
 
 ## 2. DQN Agent with prioritized replay buffer 
 
@@ -63,9 +78,49 @@ loss = losses_v.mean()
 prios = losses_v + 1e-5
   
 
+The Deep Q-Network architecture of the DQN Agent is following (the same as for basic DQN Agent):
+
+```
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (4 units - action size)
+```
+
 ## 3. DQN Agent for pixels navigation with prioritized replay buffer
  
 ## 4. Dueling DQN Agent
+
+The main idea behind Dueling DQN Agent is that the Q-values Q(s, a) Q-network is
+trying to approximate can be divided into quantities: the value of the state V(s) and
+the advantage of actions in this state A(s, a). The quantity V(s) equals to the 
+discounted expected reward achievable from this state. The advantage A(s, a) 
+is supposed to bridge the gap from A(s) to Q(s, a), as, by definition: Q(s, a) = V(s) + A(s, a). 
+In other words, the advantage A(s, a) is just the delta, saying how much extra reward 
+some particular action from the state brings us. Advantage could be positive or negative and, in general, 
+can have any magnitude. For example, at some tipping point, the choice of one action over another can cost us
+lots of the total reward.
+
+Dueling DQN Agent uses a different Q-Network that processes vector observations (states) using two independent paths: 
+one path is responsible for V(s) prediction, which is just a single number, 
+and another path predicts individual advantage values, having the same dimension as Q-values in the classic case. 
+After that, we add V(s) to every value of A(s, a) to obtain the Q(s, a), which is used and trained as normal.
+
+In order to make sure that the network will learn V(s) and A(s, a) correctly we
+have yet another constraint to be set: we want the mean value of the advantage of
+any state to be zero.  This constraint could be enforced by subtracting from the Q expression 
+in the network the mean value of the advantage, which effectively pulls 
+the mean for advantage to zero: <img src="https://latex.codecogs.com/svg.latex?\Large&space;Q(s, a) = V (s) + A(s, a) - \frac{1}{k} \sum A(s, k)" />
+
+This keeps the changes needed to be made in the classic DQN very simple: to convert
+it to the double DQN you need to change only the network architecture, without
+affecting other pieces of the implementation
+
 
 ## 5. Categorical DQN Agent 
 
