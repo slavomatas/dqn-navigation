@@ -10,9 +10,9 @@
 
 I have implemented several variants of DQN Agents
 
-# 1. Basic DQN Agent with Experience Reply
+# 1. DQN Agent with Experience Reply
 
-Basic DQN agent implements Deep Q-Learning Algorithm which has the following steps 
+DQN agent implements Deep Q-Learning Algorithm which has the following steps 
 
 1. Initialize parameters for Q(s, a) and Q ˆ(s, a) with random weights, epsilon ← 1.0,
 and empty replay buffer
@@ -47,15 +47,15 @@ The fractional update was controlled by the parameter tau which was set to 0.001
 The Deep Q-Network architecture of the Basic DQN Agent is following (for vector observations):
 
 ```
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=37 -> state size, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=128, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (4 units - action size)
+Fully Connected Layer (in=128, out=4 -> action size)
 ```
 
 ## 2. DQN Agent with Prioritized Experience Reply 
@@ -109,18 +109,48 @@ Snippet of the code of the explicit MSE Loss calculation:
 The Deep Q-Network architecture of the DQN Agent is following (the same as for basic DQN Agent):
 
 ```
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=37 -> state size, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=128, out=128)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (in=128, out=4 -> action size)
+```
+
+## 3. DQN Agent for pixels navigation with Prioritized Experience Reply
+
+DQN Agent implementation is identical to DQN Agent with Prioritized Experience Replay. 
+
+What's different is the Q-Network.
+
+In order to process visual observations I defined Q-Network as following:
+
+```
+2D Convolutional Layer (out=32, kernel size=8, stride=4)
+		  |
+		ReLU
+		  |
+2D Convolutional Layer (in=32, out=64, kernel size=8, stride=4)
+		  |
+		ReLU
+		  |
+2D Convolutional Layer (in=64, out=64, kernel size=8, stride=4)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (in=64*7*7=3136 units, out=128)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (in=128 units)
 		  |
 		ReLU
 		  |
 Fully Connected Layer (4 units - action size)
 ```
-
-## 3. DQN Agent for pixels navigation with Prioritized Experience Reply
  
 ## 4. Dueling DQN Agent with Prioritized Experience Reply
 
@@ -150,29 +180,29 @@ To implement Dueling DQN Agent, its only necessary make changes to the Q-Network
 Value function network:
 
 ```
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=37 ->state size, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=128, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (1 unit)
+Fully Connected Layer (in=128, out=1)
 ```
 
 Advantage function network:
 
 ```
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=37 ->state size, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=128, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (4 units - actions size)
+Fully Connected Layer (in=128, out=4 -> actions size)
 ```
     def forward(self, x):
         val = self.fc_val(x)
@@ -222,15 +252,15 @@ the results back into our original atoms.
 The architecture of the Q-Network is following:
 
 ```
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=37 -> state size, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (128 units)
+Fully Connected Layer (in=128, out=128)
 		  |
 		ReLU
 		  |
-Fully Connected Layer (4*51 units - actions size*number of atoms)
+Fully Connected Layer (in=128, out=4*51 -> actions size*number of atoms)
 ```
 
 As the Q-Network predicts probability distributions of actions forward method uses softmax:
@@ -256,8 +286,9 @@ As the Q-Network predicts probability distributions of actions forward method us
 
 ## Ideas for Future Work
 
-1. Navigation with Pixels - so far i have tested DQN Agent with Prioritized Experience Replay using visual observations (frames)
+1. Navigation with Pixels - so far i have tested Basic DQN Agent with Prioritized Experience Replay using visual observations (frames). 
+Unfortunately DQN Agent performance didnt show any progress during the learning. i will try to implement frame stacking (buffering)   
 
 ## Conclusion
 
-From the performance scores is evident that Dueling DQN Agent and DQN Agent with Prioritized Experience Replay achieved the best performance. 
+Comparing the performance scores shows that Dueling DQN Agent and DQN Agent with Prioritized Experience Replay achieved the best performance. 

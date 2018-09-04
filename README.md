@@ -6,12 +6,9 @@
 
 ### Introduction
 
-This is the first Unity based project in the Udacity Deep Reinforcement Learning Nanodegree.
 
-
-In this project we trained a DQN reinforcement learning agent to reach a score of +13 on 
-average over 100 episodes in the Udacity Deep Reinforcement Learing Nanodegree Bananas 
-environment. (A simplified version of the [Banana Collectors Unity-ML environment](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Learning-Environment-Examples.md#banana-collector).
+In this project I trained a DQN reinforcement learning agent to reach a score of +13 on 
+average over 100 episodes in the Unity-ML Bananas environment. 
 
 In this environment positive reward is accumulated by running into yellow "good" bananas and 
 avoiding blue "bad" bananas which return -1 reward. An episode ends after a fixed interval of 300 
@@ -19,14 +16,13 @@ steps.
 
 ### Report
 
-In addition to adapting provided code to reach this score we contribute two useful components. 
-The first is a [simple wrapper class](peel.py) for the provided Unity environment which makes it 
-directly compatible with the existing class DQN code which was designed for an OpenAI Gym 
-interface.
+I have implemented several variants of DQN agents:
 
-The second and more important contribution is to establish human baselines for this environment. 
-Finally we propose an simple alternate measure for declaring this environment "solved" which 
-better measures the ability of an agent.
+1. DQN agent with Experience Reply using vector observations
+2. DQN agent with Prioritized Experience Reply using vector observations
+3. DQN agent with Prioritized Experience Reply using visual observations
+4. Dueling DQN Agent with Prioritized Experience Reply using vector observations
+5. Categorical DQN Agent with Experience Replay using vector observations
 
 For details please read the [full report](Report.md).
 
@@ -101,31 +97,20 @@ Next follow the instructions from the [Navigation Project README](https://github
 
 2. Place the file in the `unity/` directory of this repository and unzip (or decompress) the file.
 
-__PLEASE NOTE__ : While we are confident that this can be made to work under other environments
-this specific instruction was only tested under Windows 10 as it is the only local CUDA capable
-machine available to us.
 
 ### Instructions
 
 The following assume you have a properly installed environment (e.g. a conda env) and are
 running these commands from a command line where that environment has been activated.
 
-#### Freeplay
-
-If you're on windows you can play the environment yourself by running the freeplay script.
-
-`python freeplay.py`
-
-#### Review
-
-To watch a pre-trained agent perform run the review script.
-
-`python review.py checkpoints\checkpoint-454.pth --graphics`
-
-Leave off `--graphics` to run in headless mode and speed up the review.
-
 #### Train
 
-To retrain an agent from scratch using the provided code run the train script.
+To train an agent from scratch using the provided code run the train script in a respective package.
 
-`python train.py`
+`python3 train.py`
+
+#### Play
+
+To watch a pre-trained agent perform run the play script in the respective package.
+
+`python play.py`
