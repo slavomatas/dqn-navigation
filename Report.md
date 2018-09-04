@@ -1,12 +1,11 @@
-# Implementing a Banana Obsessed Agent
+# Implementing a DQN Agent
 
 ## Summary
 
  In this project I trained a DQN reinforcement learning agent to reach a score of +13 on 
- average over 100 episodes in the Unity-ML environment. 
- In this environment positive reward is accumulated by running into yellow "good" bananas and 
- avoiding blue "bad" bananas which return -1 reward. An episode ends after a fixed interval of 300 
- steps.
+ average over 100 episodes in the Unity-ML environment.  In this environment positive reward 
+ is accumulated by running into yellow "good" bananas and  avoiding blue "bad" bananas which return -1 reward. 
+ An episode ends after a fixed interval of 1000 steps.
 
 
 I have implemented several variants of DQN Agents
@@ -115,12 +114,43 @@ In order to make sure that the network will learn V(s) and A(s, a) correctly we
 have yet another constraint to be set: we want the mean value of the advantage of
 any state to be zero.  This constraint could be enforced by subtracting from the Q expression 
 in the network the mean value of the advantage, which effectively pulls 
-the mean for advantage to zero: <img src="https://latex.codecogs.com/svg.latex?\Large&space;Q(s, a) = V (s) + A(s, a) - \frac{1}{k} \sum A(s, k)" />
+the mean for advantage to zero: Q(s, a) = V (s) + A(s, a) - \frac{1}{k} \sum A(s, k)
 
-This keeps the changes needed to be made in the classic DQN very simple: to convert
-it to the double DQN you need to change only the network architecture, without
-affecting other pieces of the implementation
+To implement Dueling DQN Agent, its only necessary make changes to the Q-Network in the following way.
 
+Value function network:
+
+```
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (1 unit)
+```
+
+Advantage function network:
+
+```
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (128 units)
+		  |
+		ReLU
+		  |
+Fully Connected Layer (4 units - actions size)
+```
+    def forward(self, x):
+        val = self.fc_val(x)
+        adv = self.fc_adv(x)
+        return val + adv - adv.mean()
+
+The rest of the Dueling DQN Agent implementation is the same as for Basic or Prioritied DQN Agent.
 
 ## 5. Categorical DQN Agent 
 
