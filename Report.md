@@ -44,7 +44,7 @@ The fractional update was controlled by the parameter tau which was set to 0.001
 10. Repeat from step 2 until reaching average reward over last 100 episodes of 13 
 
 
-The Deep Q-Network architecture of the Basic DQN Agent is following (for vector observations):
+The Deep Q-Network architecture of the DQN Agent is following (for vector observations):
 
 ```
 Fully Connected Layer (in=37 -> state size, out=128)
@@ -287,7 +287,7 @@ As the Q-Network predicts probability distributions of actions forward method us
 
 Comparing the performance scores shows that Dueling DQN Agent and DQN Agent with Prioritized Experience Replay achieved the best performance. 
 
-Navigation with Pixels - so far i have tested Basic DQN Agent with Prioritized Experience Replay using visual observations (frames). 
+Navigation with Pixels - so far i have tested basic DQN Agent with Prioritized Experience Replay using visual observations (frames). 
 Unfortunately DQN Agent performance didnt show significant progress during the learning. 
 I will try to implement few changes/improvements:
     frame stacking (buffering) 
