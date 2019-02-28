@@ -1,4 +1,4 @@
-# Project 1: Navigation
+# Navigation with DQN Agent
 
 <p align=center>
 	<img width=80% src="images/hero.png"/>
